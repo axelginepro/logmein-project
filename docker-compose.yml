@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # --- BACKEND ---
+  backend:
+    # En local, il va construire l'image. En prod, il cherchera l'image sur DockerHub.
+    # Remplacez 'votre-pseudo' par votre vrai pseudo DockerHub si vous voulez tester le pull.
+    # Pour le dev local, la ligne 'build' suffit.
+    build: ./backend
+    image: simple-monitor-backend:latest 
+    environment:
+      - DB_HOST=db
+      - DB_NAME=logs_db
+      - DB_USER=logs_user
+      # En local, on met le mot de passe en dur pour simplifier.
+      # En prod, on utilisera les secrets (voir section secrets plus bas).
+      - DB_PASSWORD=logs_password
+    ports:
+      - "5000:5000"
+    networks:
+      - monitor-net
+    depends_on:
+      - db
+
+  # --- FRONTEND ---
+  frontend:
+    build: ./frontend
+    image: simple-monitor-frontend:latest
+    ports:
+      - "3000:80" # On accède au site via localhost:3000
+    networks:
+      - monitor-net
+    depends_on:
+      - backend
+
+  # --- DATABASE ---
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: logs_db
+      POSTGRES_USER: logs_user
+      POSTGRES_PASSWORD: logs_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - monitor-net
+
+networks:
+  monitor-net:
+    # Le driver 'overlay' est nécessaire pour Swarm.
+    # Si vous testez juste avec 'docker-compose up' en local (hors swarm), Docker le gérera quand même.
+    driver: overlay
+    attachable: true 
+
+volumes:
+  db_data:

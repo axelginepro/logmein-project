@@ -40,17 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Debug pour vérifier si le secret est bien chargé (affichera *** si ok)
-      - name: Debug Secrets
-        run: echo "Docker User is ${{ secrets.DOCKERHUB_USERNAME }}"
-
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-       # Build Backend
+      # Build Backend (Avec pseudo en dur)
       - name: Build and Push Backend
         uses: docker/build-push-action@v4
         with:
@@ -58,26 +54,26 @@ jobs:
           push: true
           tags: axelginepro/simple-monitor-backend:latest
 
-      # Build Frontend
+      # Build Frontend (Avec pseudo en dur)
       - name: Build and Push Frontend
         uses: docker/build-push-action@v4
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/simple-monitor-frontend:latest
+          tags: axelginepro/simple-monitor-frontend:latest
 
       # Scan de vulnérabilité (Sécurité)
       - name: Run Trivy Scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/simple-monitor-backend:latest'
+          image-ref: 'axelginepro/simple-monitor-backend:latest'
           format: 'table'
           severity: 'CRITICAL,HIGH'
-          exit-code: '0' # On met 0 pour ne pas bloquer le pipeline tant qu'on debug, mettre 1 en prod
+          exit-code: '0' # Ne bloque pas le pipeline (mode audit)
 
       # Déploiement Swarm via SSH
-      # NOTE: Cette étape échouera tant que vous n'avez pas configuré les secrets SWARM_HOST, etc.
-      # Si vous n'avez pas encore de serveur, vous pouvez commenter cette section temporairement.
+      # ATTENTION : Cette étape va échouer tant que vous n'avez pas de serveur configuré.
+      # Je l'ai laissée active car c'est demandé, mais attendez-vous à une erreur ici.
       - name: Deploy to Swarm
         uses: appleboy/ssh-action@master
         with:
@@ -85,5 +81,5 @@ jobs:
           username: ${{ secrets.SWARM_USER }}
           key: ${{ secrets.SWARM_SSH_KEY }}
           script: |
-            docker service update --image ${{ secrets.DOCKERHUB_USERNAME }}/simple-monitor-backend:latest simple_monitoring_backend
-            docker service update --image ${{ secrets.DOCKERHUB_USERNAME }}/simple-monitor-frontend:latest simple_monitoring_frontend
+            docker service update --image axelginepro/simple-monitor-backend:latest simple_monitoring_backend
+            docker service update --image axelginepro/simple-monitor-frontend:latest simple_monitoring_frontend

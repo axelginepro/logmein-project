@@ -1,6 +1,9 @@
 // Configuration
-const API_BASE_URL =
-  window.location.hostname === "localhost" ? "http://localhost:5000" : "";
+// On détecte l'IP ou le nom de domaine actuel et on cible le port 5000 (Backend)
+const hostname = window.location.hostname;
+const API_BASE_URL = `http://${hostname}:5000`;
+
+console.log("API connectée sur :", API_BASE_URL); // Utile pour le debug
 
 // État global
 let allLogs = [];
@@ -97,14 +100,21 @@ const updateServiceFilter = (logs) => {
   const services = [...new Set(logs.map((log) => log.service))];
 
   // Vider et repeupler le filtre des services
-  elements.serviceFilter.innerHTML =
-    '<option value="">Tous les services</option>';
+  // On garde la première option "Tous les services"
+  const currentVal = elements.serviceFilter.value;
+  elements.serviceFilter.innerHTML = '<option value="">Tous les services</option>';
+  
   services.forEach((service) => {
     const option = document.createElement("option");
     option.value = service;
     option.textContent = service;
     elements.serviceFilter.appendChild(option);
   });
+
+  // Restaurer la sélection si elle existe encore
+  if (services.includes(currentVal)) {
+    elements.serviceFilter.value = currentVal;
+  }
 };
 
 const createLogElement = (log) => {
@@ -170,11 +180,16 @@ const renderLogs = () => {
 };
 
 const showLoading = () => {
-  elements.logsList.innerHTML = '<div class="loading">⏳ Chargement...</div>';
+  // On affiche le chargement seulement si la liste est vide au départ
+  if(elements.logsList.children.length === 0) {
+      elements.logsList.innerHTML = '<div class="loading">⏳ Chargement...</div>';
+  }
 };
 
 const showError = (message) => {
-  elements.logsList.innerHTML = `<div class="error-message">❌ ${message}</div>`;
+  // On n'écrase pas tout l'écran pour une erreur passagère, on l'affiche en haut ou console
+  console.error(message);
+  // Optionnel : Notification Toast ici
 };
 
 // Fonctions principales
@@ -193,8 +208,16 @@ const loadDashboard = async () => {
     updateServiceFilter(allLogs);
     applyFilters();
   } catch (error) {
-    console.error("Erreur:", error);
+    console.error("Erreur Dashboard:", error);
     showError(error.message);
+    
+    // Si c'est une erreur réseau, on affiche un message clair dans la liste
+    if(elements.logsList.innerHTML.includes("Chargement")) {
+         elements.logsList.innerHTML = `<div class="error-message">
+            ❌ Impossible de contacter le serveur API (${API_BASE_URL}).<br>
+            Vérifiez que le Backend tourne bien sur le port 5000.
+         </div>`;
+    }
   }
 };
 
@@ -222,15 +245,18 @@ const addTestLog = async () => {
   };
 
   try {
+    const originalText = elements.addTestBtn.textContent;
     elements.addTestBtn.textContent = "⏳ Ajout...";
     elements.addTestBtn.disabled = true;
 
     await api.addLog(testLog);
     await loadDashboard();
+    
+    elements.addTestBtn.textContent = originalText;
+    elements.addTestBtn.disabled = false;
   } catch (error) {
     console.error("Erreur lors de l'ajout:", error);
-    alert("Erreur lors de l'ajout du log test");
-  } finally {
+    alert("Erreur API : Impossible d'ajouter le log");
     elements.addTestBtn.textContent = "➕ Test Log";
     elements.addTestBtn.disabled = false;
   }
@@ -242,57 +268,76 @@ const clearAllLogs = async () => {
   }
 
   try {
+    const originalText = elements.clearBtn.textContent;
     elements.clearBtn.textContent = "⏳ Suppression...";
     elements.clearBtn.disabled = true;
 
     await api.clearLogs();
     await loadDashboard();
+    
+    elements.clearBtn.textContent = originalText;
+    elements.clearBtn.disabled = false;
   } catch (error) {
     console.error("Erreur lors de la suppression:", error);
-    alert("Erreur lors de la suppression des logs");
-  } finally {
+    alert("Erreur API : Impossible de supprimer les logs");
     elements.clearBtn.textContent = "🗑️ Vider";
     elements.clearBtn.disabled = false;
   }
 };
 
 // Event listeners
-elements.refreshBtn.addEventListener("click", loadDashboard);
-elements.clearBtn.addEventListener("click", clearAllLogs);
-elements.addTestBtn.addEventListener("click", addTestLog);
+// On vérifie que les éléments existent avant d'ajouter les écouteurs (sécurité)
+if(elements.refreshBtn) elements.refreshBtn.addEventListener("click", loadDashboard);
+if(elements.clearBtn) elements.clearBtn.addEventListener("click", clearAllLogs);
+if(elements.addTestBtn) elements.addTestBtn.addEventListener("click", addTestLog);
 
-elements.levelFilter.addEventListener("change", (e) => {
-  currentFilters.level = e.target.value;
-  applyFilters();
-});
+if(elements.levelFilter) {
+    elements.levelFilter.addEventListener("change", (e) => {
+      currentFilters.level = e.target.value;
+      applyFilters();
+    });
+}
 
-elements.serviceFilter.addEventListener("change", (e) => {
-  currentFilters.service = e.target.value;
-  applyFilters();
-});
+if(elements.serviceFilter) {
+    elements.serviceFilter.addEventListener("change", (e) => {
+      currentFilters.service = e.target.value;
+      applyFilters();
+    });
+}
 
-elements.searchInput.addEventListener("input", (e) => {
-  currentFilters.search = e.target.value;
-  applyFilters();
-});
+if(elements.searchInput) {
+    elements.searchInput.addEventListener("input", (e) => {
+      currentFilters.search = e.target.value;
+      applyFilters();
+    });
+}
 
-elements.loadMoreBtn.addEventListener("click", async () => {
-  try {
-    elements.loadMoreBtn.textContent = "⏳ Chargement...";
-    const moreData = await api.getLogs(allLogs.length + 100);
-    allLogs = moreData.logs;
-    applyFilters();
-  } catch (error) {
-    console.error("Erreur:", error);
-  } finally {
-    elements.loadMoreBtn.textContent = "Charger plus";
-  }
-});
+if(elements.loadMoreBtn) {
+    elements.loadMoreBtn.addEventListener("click", async () => {
+      try {
+        const originalText = elements.loadMoreBtn.textContent;
+        elements.loadMoreBtn.textContent = "⏳ Chargement...";
+        const moreData = await api.getLogs(allLogs.length + 100);
+        
+        // On ajoute seulement les nouveaux logs pour éviter les doublons
+        // (Approche naïve ici, on remplace tout pour simplifier)
+        allLogs = moreData.logs;
+        applyFilters();
+        
+        elements.loadMoreBtn.textContent = originalText;
+      } catch (error) {
+        console.error("Erreur:", error);
+        elements.loadMoreBtn.textContent = "Réessayer";
+      }
+    });
+}
 
 // Auto-refresh (toutes les 30 secondes)
 setInterval(() => {
   loadDashboard();
 }, 30000);
 
-// Chargement initial
-loadDashboard();
+// Chargement initial au démarrage
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+});

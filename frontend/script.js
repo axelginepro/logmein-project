@@ -1,11 +1,33 @@
-// Configuration
-// On détecte l'IP ou le nom de domaine actuel et on cible le port 5000 (Backend)
-const hostname = window.location.hostname;
-const API_BASE_URL = "/api"; 
+/**
+ * CONFIGURATION INTELLIGENTE DE L'API
+ * Cette fonction permet au site de marcher partout :
+ * - Sur Localhost (Dev)
+ * - Sur Play With Docker (Exam)
+ * - Sur un serveur AWS standard (Prod)
+ */
+const determineApiUrl = () => {
+  const protocol = window.location.protocol; // http: ou https:
+  const hostname = window.location.hostname; // ex: ip-172-18...-3000.direct.labs...
 
-console.log("API connectée sur :", API_BASE_URL); // Utile pour le debug
+  // CAS 1 : Spécifique Play With Docker
+  // PWD met le port dans l'URL (ex: ...-3000.direct.labs...)
+  // On remplace le port du frontend (-3000) par celui du backend (-5000)
+  if (hostname.includes("-3000")) {
+      const backendHostname = hostname.replace("-3000", "-5000");
+      return `${protocol}//${backendHostname}`;
+  }
 
-// État global
+  // CAS 2 : Standard (Localhost, AWS, VM simple)
+  // On garde le même nom d'hôte et on tape sur le port 5000
+  return `${protocol}//${hostname}:5000`;
+};
+
+// On calcule l'URL une fois pour toutes au chargement
+const API_BASE_URL = determineApiUrl();
+console.log("🔗 API URL calculée :", API_BASE_URL);
+
+
+// --- ÉTAT GLOBAL ---
 let allLogs = [];
 let filteredLogs = [];
 let currentFilters = {
@@ -14,7 +36,7 @@ let currentFilters = {
   search: "",
 };
 
-// Éléments du DOM
+// --- ÉLÉMENTS DU DOM ---
 const elements = {
   totalLogs: document.getElementById("total-logs"),
   errorCount: document.getElementById("error-count"),
@@ -30,7 +52,7 @@ const elements = {
   loadMoreBtn: document.getElementById("load-more-btn"),
 };
 
-// Utilitaires
+// --- UTILITAIRES ---
 const formatTimestamp = (timestamp) => {
   const date = new Date(timestamp);
   return date.toLocaleString("fr-FR");
@@ -50,7 +72,7 @@ const formatRelativeTime = (timestamp) => {
   return `${diffDays}j`;
 };
 
-// API
+// --- API CLIENT ---
 const api = {
   async getLogs(limit = 100) {
     const response = await fetch(`${API_BASE_URL}/logs?limit=${limit}`);
@@ -83,24 +105,27 @@ const api = {
   },
 };
 
-// Interface utilisateur
+// --- INTERFACE UTILISATEUR ---
 const updateStats = (stats) => {
-  elements.totalLogs.textContent = stats.total_logs || 0;
-  elements.errorCount.textContent = stats.levels.error || 0;
-  elements.warningCount.textContent = stats.levels.warning || 0;
+  if(elements.totalLogs) elements.totalLogs.textContent = stats.total_logs || 0;
+  if(elements.errorCount) elements.errorCount.textContent = stats.levels.error || 0;
+  if(elements.warningCount) elements.warningCount.textContent = stats.levels.warning || 0;
 
-  if (stats.last_log) {
-    elements.lastLog.textContent = formatRelativeTime(stats.last_log.timestamp);
-  } else {
-    elements.lastLog.textContent = "Aucun";
+  if (elements.lastLog) {
+    if (stats.last_log) {
+        elements.lastLog.textContent = formatRelativeTime(stats.last_log.timestamp);
+    } else {
+        elements.lastLog.textContent = "Aucun";
+    }
   }
 };
 
 const updateServiceFilter = (logs) => {
+  if (!elements.serviceFilter) return;
+  
   const services = [...new Set(logs.map((log) => log.service))];
 
   // Vider et repeupler le filtre des services
-  // On garde la première option "Tous les services"
   const currentVal = elements.serviceFilter.value;
   elements.serviceFilter.innerHTML = '<option value="">Tous les services</option>';
   
@@ -159,6 +184,8 @@ const applyFilters = () => {
 };
 
 const renderLogs = () => {
+  if (!elements.logsList) return;
+
   if (filteredLogs.length === 0) {
     elements.logsList.innerHTML = `
             <div class="empty-state">
@@ -175,24 +202,22 @@ const renderLogs = () => {
   });
 
   // Afficher/masquer le bouton "Charger plus"
-  elements.loadMoreBtn.style.display =
-    filteredLogs.length >= 100 ? "block" : "none";
+  if (elements.loadMoreBtn) {
+      elements.loadMoreBtn.style.display = filteredLogs.length >= 100 ? "block" : "none";
+  }
 };
 
 const showLoading = () => {
-  // On affiche le chargement seulement si la liste est vide au départ
-  if(elements.logsList.children.length === 0) {
+  if(elements.logsList && elements.logsList.children.length === 0) {
       elements.logsList.innerHTML = '<div class="loading">⏳ Chargement...</div>';
   }
 };
 
 const showError = (message) => {
-  // On n'écrase pas tout l'écran pour une erreur passagère, on l'affiche en haut ou console
   console.error(message);
-  // Optionnel : Notification Toast ici
 };
 
-// Fonctions principales
+// --- FONCTIONS PRINCIPALES ---
 const loadDashboard = async () => {
   try {
     showLoading();
@@ -211,11 +236,10 @@ const loadDashboard = async () => {
     console.error("Erreur Dashboard:", error);
     showError(error.message);
     
-    // Si c'est une erreur réseau, on affiche un message clair dans la liste
-    if(elements.logsList.innerHTML.includes("Chargement")) {
+    if(elements.logsList && elements.logsList.innerHTML.includes("Chargement")) {
          elements.logsList.innerHTML = `<div class="error-message">
-            ❌ Impossible de contacter le serveur API (${API_BASE_URL}).<br>
-            Vérifiez que le Backend tourne bien sur le port 5000.
+            ❌ Impossible de contacter le serveur API.<br>
+            URL ciblée : ${API_BASE_URL}
          </div>`;
     }
   }
@@ -285,8 +309,7 @@ const clearAllLogs = async () => {
   }
 };
 
-// Event listeners
-// On vérifie que les éléments existent avant d'ajouter les écouteurs (sécurité)
+// --- LISTENERS ---
 if(elements.refreshBtn) elements.refreshBtn.addEventListener("click", loadDashboard);
 if(elements.clearBtn) elements.clearBtn.addEventListener("click", clearAllLogs);
 if(elements.addTestBtn) elements.addTestBtn.addEventListener("click", addTestLog);
@@ -319,8 +342,6 @@ if(elements.loadMoreBtn) {
         elements.loadMoreBtn.textContent = "⏳ Chargement...";
         const moreData = await api.getLogs(allLogs.length + 100);
         
-        // On ajoute seulement les nouveaux logs pour éviter les doublons
-        // (Approche naïve ici, on remplace tout pour simplifier)
         allLogs = moreData.logs;
         applyFilters();
         
@@ -332,12 +353,12 @@ if(elements.loadMoreBtn) {
     });
 }
 
-// Auto-refresh (toutes les 30 secondes)
+// Auto-refresh
 setInterval(() => {
   loadDashboard();
 }, 30000);
 
-// Chargement initial au démarrage
+// Démarrage
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
 });

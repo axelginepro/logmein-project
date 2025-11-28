@@ -1,7 +1,7 @@
 // Configuration
 // On détecte l'IP ou le nom de domaine actuel et on cible le port 5000 (Backend)
 const hostname = window.location.hostname;
-const API_BASE_URL = `http://${hostname}:5000`;
+const API_BASE_URL = "/api"; 
 
 console.log("API connectée sur :", API_BASE_URL); // Utile pour le debug
 

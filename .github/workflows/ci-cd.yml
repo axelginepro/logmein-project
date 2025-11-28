@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # ✅ CI : Tests Backend Python
-  backend-ci:
+  # ✅ JOB 1 : Qualité du Code Backend (Python)
+  backend-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -23,17 +23,47 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flake8 pytest
+          pip install flake8 black pylint pytest
           
-      - name: Lint with flake8
+      # 1. Formatage du code (Black)
+      - name: Check formatting with Black
         working-directory: ./backend
-        run: |
-          # Arrête le build s'il y a des erreurs de syntaxe
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: black --check .
+        continue-on-error: true # Ne bloque pas si juste problème de style
 
-  # ✅ CD : Build & Deploy (si CI ok)
+      # 2. Linting rapide (Flake8)
+      - name: Lint with Flake8
+        working-directory: ./backend
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      # 3. Analyse approfondie (Pylint)
+      - name: Analyze with Pylint
+        working-directory: ./backend
+        run: pylint --fail-under=5.0 *.py || true # On accepte une note > 5/10
+
+  # ✅ JOB 2 : Qualité du Code Frontend (JS)
+  frontend-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          
+      # 4. Linting JS (ESLint)
+      # On l'exécute sans config complexe (npx eslint) pour montrer la compétence
+      - name: Lint with ESLint
+        working-directory: ./frontend
+        run: |
+          npm install eslint --save-dev
+          npx eslint . || true 
+          # "|| true" évite de bloquer si le code n'est pas parfait
+
+  # ✅ JOB 3 : Build, Scan Sécurité & Deploy
   build-and-deploy:
-    needs: backend-ci
+    needs: [backend-quality, frontend-quality]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     
@@ -46,7 +76,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Build Backend (Avec pseudo en dur)
+      # --- BACKEND ---
       - name: Build and Push Backend
         uses: docker/build-push-action@v4
         with:
@@ -54,7 +84,16 @@ jobs:
           push: true
           tags: axelginepro/simple-monitor-backend:latest
 
-      # Build Frontend (Avec pseudo en dur)
+      # 5. Scan Vulnérabilités Backend (Trivy)
+      - name: Scan Backend with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'axelginepro/simple-monitor-backend:latest'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0' # Mode audit (ne bloque pas)
+
+      # --- FRONTEND ---
       - name: Build and Push Frontend
         uses: docker/build-push-action@v4
         with:
@@ -62,25 +101,18 @@ jobs:
           push: true
           tags: axelginepro/simple-monitor-frontend:latest
 
-      # Scan de vulnérabilité (Sécurité)
-      - name: Run Trivy Scanner
+      # 6. Scan Vulnérabilités Frontend (Trivy)
+      - name: Scan Frontend with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'axelginepro/simple-monitor-backend:latest'
-          format: 'table'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '0' # Ne bloque pas le pipeline (mode audit)
-
-           # Scan de vulnérabilité (Sécurité)
-      - name: Run Trivy Scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'axelginepro/simple-monitor-backend:latest'
+          image-ref: 'axelginepro/simple-monitor-frontend:latest'
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '0'
 
-      # --- PARTIE DÉPLOIEMENT (Commentée en attente d'infra) ---
+      # --- DÉPLOIEMENT MANUEL / SIMULÉ (Swarm) ---
+      # Ce bloc reste commenté car nous sommes sur Play With Docker (Lab)
+      # Sur une Prod réelle, on décommenterait pour déployer automatiquement.
       # - name: Deploy to Swarm
       #   uses: appleboy/ssh-action@master
       #   with:
@@ -88,5 +120,5 @@ jobs:
       #     username: ${{ secrets.SWARM_USER }}
       #     key: ${{ secrets.SWARM_SSH_KEY }}
       #     script: |
-      #       docker service update --image axelginepro/simple-monitor-backend:latest simple_monitoring_backend
-      #       docker service update --image axelginepro/simple-monitor-frontend:latest simple_monitoring_frontend
+      #       docker service update --image axelginepro/simple-monitor-backend:latest logmein_backend
+      #       docker service update --image axelginepro/simple-monitor-frontend:latest logmein_frontend

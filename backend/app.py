@@ -5,9 +5,18 @@ import psycopg2
 import psycopg2.extras
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from prometheus_flask_exporter import PrometheusMetrics  # ✅ IMPORT MONITORING
 
 app = Flask(__name__)
 CORS(app)
+
+# ✅ INITIALISATION MONITORING
+# Expose automatiquement /metrics pour Prometheus
+metrics = PrometheusMetrics(app)
+
+# Informations sur l'application (Version, etc.)
+metrics.info('app_info', 'Application Info', version='1.0.0')
+
 
 # Configuration de la base de données
 DB_CONFIG = {
@@ -18,9 +27,11 @@ DB_CONFIG = {
     'port': os.getenv('DB_PORT', 5432)
 }
 
+
 def get_db_connection():
     """Créer une connexion à la base de données"""
     return psycopg2.connect(**DB_CONFIG)
+
 
 def init_db():
     """Initialiser la base de données et créer la table logs"""
@@ -57,10 +68,13 @@ def init_db():
     except Exception as e:
         print(f"Erreur lors de l'initialisation de la DB: {e}")
 
+
 # Initialiser la DB au démarrage
 init_db()
 
+
 @app.route('/health', methods=['GET'])
+@metrics.do_not_track() # On ne monitore pas le Healthcheck pour ne pas polluer
 def health():
     """Point de santé simple"""
     try:
@@ -73,6 +87,7 @@ def health():
         return jsonify({'status': 'ok', 'database': 'connected', 'timestamp': datetime.now().isoformat()})
     except Exception as e:
         return jsonify({'status': 'error', 'database': 'disconnected', 'error': str(e)}), 500
+
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
@@ -124,7 +139,9 @@ def get_logs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/logs', methods=['POST'])
+@metrics.counter('logs_created_total', 'Nombre de logs créés') # ✅ Compteur personnalisé
 def add_log():
     """Ajoute un nouveau log"""
     try:
@@ -169,6 +186,7 @@ def add_log():
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
@@ -239,6 +257,7 @@ def get_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/logs/clear', methods=['DELETE'])
 def clear_logs():
     """Vide tous les logs (utilisation avec précaution)"""
@@ -259,5 +278,7 @@ def clear_logs():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 if __name__ == '__main__':
+    # On écoute sur toutes les interfaces
     app.run(host='0.0.0.0', port=5000, debug=True)

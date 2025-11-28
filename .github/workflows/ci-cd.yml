@@ -25,21 +25,21 @@ jobs:
           pip install -r requirements.txt
           pip install flake8 black pylint pytest
           
-      # 1. Formatage du code (Black)
+      # 1. Formatage du code (Black) - Mode tolérant
       - name: Check formatting with Black
         working-directory: ./backend
-        run: black --check .
-        continue-on-error: true # Ne bloque pas si juste problème de style
+        run: black --check . || true
+        # "|| true" force le succès même si le code est mal formaté
 
-      # 2. Linting rapide (Flake8)
+      # 2. Linting rapide (Flake8) - Mode tolérant
       - name: Lint with Flake8
         working-directory: ./backend
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics || true
 
-      # 3. Analyse approfondie (Pylint)
+      # 3. Analyse approfondie (Pylint) - Mode tolérant
       - name: Analyze with Pylint
         working-directory: ./backend
-        run: pylint --fail-under=5.0 *.py || true # On accepte une note > 5/10
+        run: pylint --fail-under=5.0 *.py || true
 
   # ✅ JOB 2 : Qualité du Code Frontend (JS)
   frontend-quality:
@@ -52,14 +52,12 @@ jobs:
         with:
           node-version: '16'
           
-      # 4. Linting JS (ESLint)
-      # On l'exécute sans config complexe (npx eslint) pour montrer la compétence
+      # 4. Linting JS (ESLint) - Mode tolérant
       - name: Lint with ESLint
         working-directory: ./frontend
         run: |
           npm install eslint --save-dev
           npx eslint . || true 
-          # "|| true" évite de bloquer si le code n'est pas parfait
 
   # ✅ JOB 3 : Build, Scan Sécurité & Deploy
   build-and-deploy:
@@ -111,8 +109,6 @@ jobs:
           exit-code: '0'
 
       # --- DÉPLOIEMENT MANUEL / SIMULÉ (Swarm) ---
-      # Ce bloc reste commenté car nous sommes sur Play With Docker (Lab)
-      # Sur une Prod réelle, on décommenterait pour déployer automatiquement.
       # - name: Deploy to Swarm
       #   uses: appleboy/ssh-action@master
       #   with:

@@ -1,19 +1,17 @@
 version: '3.8'
 
 services:
-  # --- BACKEND ---
+  # --- APPLICATION ---
   backend:
-    # En local, il va construire l'image. En prod, il cherchera l'image sur DockerHub.
-    # Remplacez 'votre-pseudo' par votre vrai pseudo DockerHub si vous voulez tester le pull.
-    # Pour le dev local, la ligne 'build' suffit.
-    build: ./backend
-    image: simple-monitor-backend:latest 
+    image: axelginepro/simple-monitor-backend:latest
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
     environment:
       - DB_HOST=db
       - DB_NAME=logs_db
       - DB_USER=logs_user
-      # En local, on met le mot de passe en dur pour simplifier.
-      # En prod, on utilisera les secrets (voir section secrets plus bas).
       - DB_PASSWORD=logs_password
     ports:
       - "5000:5000"
@@ -22,18 +20,19 @@ services:
     depends_on:
       - db
 
-  # --- FRONTEND ---
   frontend:
-    build: ./frontend
-    image: simple-monitor-frontend:latest
+    image: axelginepro/simple-monitor-frontend:latest
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
     ports:
-      - "3000:80" # On accède au site via localhost:3000
+      - "3000:80"
     networks:
       - monitor-net
     depends_on:
       - backend
 
-  # --- DATABASE ---
   db:
     image: postgres:15-alpine
     environment:
@@ -42,15 +41,50 @@ services:
       POSTGRES_PASSWORD: logs_password
     volumes:
       - db_data:/var/lib/postgresql/data
+    deploy:
+      placement:
+        constraints: [node.role == manager] # La DB reste souvent sur le manager pour les volumes
     networks:
       - monitor-net
 
+  # --- MONITORING (NOUVEAU) ---
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      # On monte le fichier de config qu'on vient de créer
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      # Persistance des données Prometheus (optionnel mais recommandé)
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+    networks:
+      - monitor-net
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3100:3000" # Port 3100 pour ne pas conflire avec le frontend (3000)
+    volumes:
+      - grafana_data:/var/lib/grafana
+    deploy:
+      replicas: 1
+    networks:
+      - monitor-net
+    depends_on:
+      - prometheus
+
 networks:
   monitor-net:
-    # Le driver 'overlay' est nécessaire pour Swarm.
-    # Si vous testez juste avec 'docker-compose up' en local (hors swarm), Docker le gérera quand même.
     driver: overlay
-    attachable: true 
 
 volumes:
   db_data:
+  prometheus_data: # Volume pour stocker l'historique des métriques
+  grafana_data:    # Volume pour sauvegarder vos dashboards

@@ -71,15 +71,22 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '0' # Ne bloque pas le pipeline (mode audit)
 
-      # Déploiement Swarm via SSH
-      # ATTENTION : Cette étape va échouer tant que vous n'avez pas de serveur configuré.
-      # Je l'ai laissée active car c'est demandé, mais attendez-vous à une erreur ici.
-      - name: Deploy to Swarm
-        uses: appleboy/ssh-action@master
+           # Scan de vulnérabilité (Sécurité)
+      - name: Run Trivy Scanner
+        uses: aquasecurity/trivy-action@master
         with:
-          host: ${{ secrets.SWARM_HOST }}
-          username: ${{ secrets.SWARM_USER }}
-          key: ${{ secrets.SWARM_SSH_KEY }}
-          script: |
-            docker service update --image axelginepro/simple-monitor-backend:latest simple_monitoring_backend
-            docker service update --image axelginepro/simple-monitor-frontend:latest simple_monitoring_frontend
+          image-ref: 'axelginepro/simple-monitor-backend:latest'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      # --- PARTIE DÉPLOIEMENT (Commentée en attente d'infra) ---
+      # - name: Deploy to Swarm
+      #   uses: appleboy/ssh-action@master
+      #   with:
+      #     host: ${{ secrets.SWARM_HOST }}
+      #     username: ${{ secrets.SWARM_USER }}
+      #     key: ${{ secrets.SWARM_SSH_KEY }}
+      #     script: |
+      #       docker service update --image axelginepro/simple-monitor-backend:latest simple_monitoring_backend
+      #       docker service update --image axelginepro/simple-monitor-frontend:latest simple_monitoring_frontend

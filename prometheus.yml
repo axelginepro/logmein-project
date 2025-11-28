@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ['localhost:5000']
 
   # Pour monitorer Docker Swarm, on utilise souvent "cadvisor" ou "dockerd-exporter".
   # Ici, version simple : on surveille les conteneurs s'ils exposent des métriques.

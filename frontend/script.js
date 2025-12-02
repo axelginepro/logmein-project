@@ -6,28 +6,32 @@
  * - Sur un serveur AWS standard (Prod)
  */
 const determineApiUrl = () => {
-  const protocol = window.location.protocol; // http: ou https:
-  const hostname = window.location.hostname; // ex: ip-172-18...-3000.direct.labs...
+  const protocol = window.location.protocol;
+  const hostname = window.location.hostname;
 
-  // CAS 1 : Spécifique Play With Docker
-  // PWD met le port dans l'URL (ex: ...-3000.direct.labs...)
-  // On remplace le port du frontend (-3000) par celui du backend (-5000)
-  if (hostname.includes("-3000")) {
-      const backendHostname = hostname
-        .replace("-3000", "-5000")
-        .replace("-80", "-5000");
-    
+  // DÉTECTION SPÉCIALE POUR PLAY WITH DOCKER
+  // Si l'URL contient "-80" (le port du frontend sur PWD)
+  if (hostname.includes("-80")) {
+      console.log("🌍 Environnement détecté : Play With Docker");
+      
+      // 1. On remplace le port du frontend (-80) par celui du backend (-5000)
+      // 2. On enlève aussi d'éventuels résidus comme "-3000" si le code a changé
+      let backendHostname = hostname.replace("-80", "-5000").replace("-3000", "-5000");
+
+      // 3. RETOURNER L'URL SANS AJOUTER :5000 À LA FIN !!!
+      // PWD utilise le sous-domaine pour router, pas le port.
       return `${protocol}//${backendHostname}`;
   }
 
-  // CAS 2 : Standard (Localhost, AWS, VM simple)
-  // On garde le même nom d'hôte et on tape sur le port 5000
+  // CAS STANDARD (Localhost, VM, Prod classique)
+  console.log("🏠 Environnement détecté : Standard");
+  // Ici, on garde le :5000 car on tape sur une IP ou un domaine classique
   return `${protocol}//${hostname}:5000`;
 };
 
-// On calcule l'URL une fois pour toutes au chargement
 const API_BASE_URL = determineApiUrl();
-console.log("🔗 API URL calculée :", API_BASE_URL);
+console.log("🔗 URL API Finale :", API_BASE_URL);
+
 
 
 // --- ÉTAT GLOBAL ---

@@ -13,7 +13,10 @@ const determineApiUrl = () => {
   // PWD met le port dans l'URL (ex: ...-3000.direct.labs...)
   // On remplace le port du frontend (-3000) par celui du backend (-5000)
   if (hostname.includes("-3000")) {
-      const backendHostname = hostname.replace("-3000", "-5000");
+      const backendHostname = hostname
+        .replace("-3000", "-5000")
+        .replace("-80", "-5000");
+    
       return `${protocol}//${backendHostname}`;
   }
 

@@ -8,7 +8,7 @@ from flask_cors import CORS
 from prometheus_flask_exporter import PrometheusMetrics  # ✅ IMPORT MONITORING
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ✅ INITIALISATION MONITORING
 # Expose automatiquement /metrics pour Prometheus
